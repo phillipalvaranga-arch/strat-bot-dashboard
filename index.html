@@ -1,0 +1,44 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Strat Bot Dashboard</title><link rel="manifest" href="manifest.json"><link rel="icon" href="icon-64.png"><link rel="apple-touch-icon" href="icon-180.png"><meta name="theme-color" content="#0b0f24">
+<style>
+:root{--bg:#0b0f24;--card:#141a3a;--line:#26305e;--txt:#e8ecff;--mut:#8f9bd0;--cy:#00e5ff;--lime:#39ff8c;--red:#ff3b5c;--amb:#ffb000}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 20% 0,#1b2250,#0b0f24 60%);color:var(--txt);font:16px/1.45 "Segoe UI",system-ui,sans-serif;min-height:100vh}
+header{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line)}header img{width:36px;height:36px;border-radius:9px}h1{font-size:19px;margin:0}h1 span{color:var(--cy)}
+.pill{padding:3px 10px;border-radius:99px;font-size:12px;font-weight:700;background:var(--line)}main{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;padding:14px;max-width:1200px;margin:auto}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px}.card h2{margin:0 0 8px;font-size:13px;text-transform:uppercase;letter-spacing:1px;color:var(--mut)}
+.big{font-size:40px;font-weight:800}.g{color:var(--lime)}.r{color:var(--red)}.m{color:var(--mut)}.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px}
+table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:6px 4px;border-bottom:1px solid var(--line);text-align:left}.wide{grid-column:1/-1}
+input{background:#0b1030;color:var(--txt);border:1px solid var(--line);border-radius:10px;padding:12px;font:inherit;width:100%}button{background:var(--cy);color:#001a20;border:0;border-radius:10px;padding:12px 18px;font-weight:800;margin-top:10px}
+.banner{padding:10px;border-radius:10px;margin:6px 0;font-weight:700}.log{font:12px Consolas,monospace;max-height:260px;overflow:auto}
+</style></head><body>
+<header><img src="icon-192.png" alt=""><h1>STRAT <span>BOT</span></h1><span class="pill" id="mode"></span><span class="pill" id="arm"></span><span class="m" id="age" style="margin-left:auto;font-size:13px"></span></header>
+<div id="login" style="max-width:420px;margin:60px auto;padding:0 16px;display:none"><div class="card"><h2>Dashboard password</h2><p class="m">Read-only view. This app cannot place or change trades.</p>
+<input id="pw" type="password" placeholder="Strat Trader dashboard password"><button id="go">Open</button><p class="m" id="err"></p></div></div>
+<main id="app" style="display:none">
+<section class="card"><h2>Today</h2><div id="banners"></div><div class="big" id="pnl"></div><div class="m" id="sub"></div>
+<div class="kv" style="margin-top:8px"><span class="m">Trades</span><span id="tt"></span><span class="m">Position</span><span id="pos"></span><span class="m">Pending</span><span id="pend"></span><span class="m">Account</span><span id="acct"></span></div></section>
+<section class="card"><h2>Stats (journal)</h2><div class="kv" id="stats"></div></section>
+<section class="card wide"><h2>Today's trades</h2><table id="today"></table></section>
+<section class="card wide"><h2>Journal</h2><table id="jr"></table></section>
+<section class="card wide"><h2>Bot log</h2><div class="log" id="log"></div><p class="m">Read-only copy sent by Strat Bot on your PC about once a minute. To stop the bot, use KILL on the PC (or TopstepX).</p><button id="out" style="background:var(--line);color:var(--txt)">Log out</button></section>
+</main>
+<script>
+const API='https://strat-trader.onrender.com/api/bot/state',$=i=>document.getElementById(i),money=v=>(v<0?'-$':'$')+Math.abs(+v||0).toFixed(2),esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmt=(t,o)=>new Date(t).toLocaleString('en-US',{timeZone:'America/Chicago',...o});
+function show(l){$('login').style.display=l?'block':'none';$('app').style.display=l?'none':'grid'}
+async function load(){const k=localStorage.sbkey;if(!k)return show(true);try{const r=await fetch(API,{headers:{'x-dashboard-key':k},cache:'no-store'});if(r.status===401){localStorage.removeItem('sbkey');$('err').textContent='Wrong password';return show(true)}
+const s=await r.json();show(false);render(s)}catch(e){$('age').textContent='Offline / server waking up…'}}
+function render(s){if(!s.at){$('pnl').textContent='No data yet';$('sub').textContent='Turn on "Tablet dashboard sync" in Strat Bot on your PC.';return}
+const ageMin=(Date.now()-new Date(s.at))/60e3;$('age').textContent='Updated '+fmt(s.at,{hour:'numeric',minute:'2-digit'})+' CT'+(ageMin>3?' ⚠ PC not syncing':'');
+$('mode').textContent={paper:'DRY-RUN',practice:'PRACTICE',combine:'COMBINE'}[s.mode]||s.mode;$('arm').textContent=s.killed?'KILLED':s.armed?'ARMED':'OFF';$('arm').style.background=s.killed?'#ff3b5c':s.armed?'#39ff8c':'';$('arm').style.color=s.armed&&!s.killed?'#04210f':'';
+$('pnl').textContent=money(s.pnl);$('pnl').className='big '+(s.pnl>0?'g':s.pnl<0?'r':'');const L=s.limits||{};$('sub').textContent=`Realized ${money(s.realized)} · Open ${money(s.unrealized)} · Stop -$${L.maxDailyLoss} · Guard +$${L.consistencyCap}`;
+$('banners').innerHTML=(s.killed?'<div class="banner" style="background:#ff3b5c33">KILL is ON</div>':'')+(s.halted?`<div class="banner" style="background:#ffb00033">Halted: ${esc(s.halted)}</div>`:'')+(s.error?`<div class="banner" style="background:#ff3b5c22">${esc(s.error)}</div>`:'');
+$('tt').textContent=s.tradesToday;$('pos').textContent=s.position?`${s.position.side} ${s.position.qty} ${s.position.symbol} @${s.position.entry} SL ${s.position.stop} TP ${s.position.target}`:'flat';
+$('pend').textContent=s.pending?`${s.pending.side} ${s.pending.symbol} @${s.pending.entry}`:'none';$('acct').textContent=s.account||(s.mode==='paper'?'Local paper':'—');
+const J=s.journal||[],w=J.filter(t=>t.pnl>0).length,net=J.reduce((a,t)=>a+t.pnl,0);$('stats').innerHTML=`<span class="m">Trades</span><span>${J.length}</span><span class="m">Win rate</span><span>${J.length?(w/J.length*100).toFixed(0):0}%</span><span class="m">Net</span><span class="${net>=0?'g':'r'}">${money(net)}</span><span class="m">Avg</span><span>${money(J.length?net/J.length:0)}</span>`;
+const row=t=>`<tr><td>${fmt(t.t,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}</td><td>${t.symbol}</td><td>${t.combo}</td><td>${t.side}</td><td>${t.qty}</td><td>${t.entry}</td><td class="${t.pnl>=0?'g':'r'}">${money(t.pnl)}</td></tr>`,hd='<tr><th>Time CT</th><th>Sym</th><th>Setup</th><th>Side</th><th>Qty</th><th>Entry</th><th>P&amp;L</th></tr>';
+const today=fmt(new Date(),{year:'numeric',month:'2-digit',day:'2-digit'});$('today').innerHTML=hd+J.filter(t=>fmt(t.t,{year:'numeric',month:'2-digit',day:'2-digit'})===today).map(row).join('');$('jr').innerHTML=hd+J.slice(0,100).map(row).join('');
+$('log').innerHTML=(s.log||[]).map(l=>`<div>${fmt(l.t,{hour:'numeric',minute:'2-digit'})} ${esc(l.m)}</div>`).join('')}
+$('go').onclick=()=>{localStorage.sbkey=$('pw').value;load()};$('out').onclick=()=>{localStorage.removeItem('sbkey');show(true)};
+load();setInterval(load,30000);if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js');
+</script></body></html>
